@@ -22,19 +22,10 @@ class ListView: UIViewController, UITableViewDelegate, UITableViewDataSource {
 		let indexPath = self.tableView.indexPath(for: cell as! UITableViewCell)
 		let file = self.fileList[(indexPath?.row)!]
 		let dir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first! as String
-		let items = [URL(fileURLWithPath: dir.appending("/" + file)), nil]
+		let items = [URL(fileURLWithPath: dir.appending("/" + file))]
 		print(items)
 		DispatchQueue.main.async {
 			let activityView = UIActivityViewController.init(activityItems: items, applicationActivities: nil)
-			activityView.excludedActivityTypes = [
-										UIActivityType.postToTwitter,
-										UIActivityType.postToWeibo,
-										UIActivityType.saveToCameraRoll,
-										UIActivityType.addToReadingList,
-										UIActivityType.postToFlickr,
-										UIActivityType.postToVimeo,
-										UIActivityType.postToTencentWeibo,
-										UIActivityType.airDrop]
 			self.present(activityView, animated: true, completion: nil)
 		}
 	}

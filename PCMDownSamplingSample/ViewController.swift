@@ -14,7 +14,7 @@ import MediaPlayer
 
 class ViewController: UIViewController {
 
-	var audioEngine : AVAudioEngine!
+	var audioEngine : AVAudioEngine = AVAudioEngine()
 	var audioFile : AVAudioFile!
 	var audioPlayer : AVAudioPlayerNode!
 	var outref: ExtAudioFileRef?
@@ -27,7 +27,7 @@ class ViewController: UIViewController {
 
 	@IBAction func rec(_ sender: Any) {
 	
-		if audioEngine != nil && audioEngine.isRunning {
+		if audioEngine.isRunning {
 			self.stopRecord()
 		} else {
 			self.startRecord()
@@ -38,8 +38,8 @@ class ViewController: UIViewController {
 	override func viewDidLoad() {
 		super.viewDidLoad()
 
-		if AVCaptureDevice.authorizationStatus(forMediaType: AVMediaTypeAudio) != .authorized {
-			AVCaptureDevice.requestAccess(forMediaType: AVMediaTypeAudio, completionHandler: { (granted: Bool) in
+		if AVCaptureDevice.authorizationStatus(for: AVMediaType.audio) != .authorized {
+			AVCaptureDevice.requestAccess(for: AVMediaType.audio, completionHandler: { (granted: Bool) in
 			})
 		}
 		self.update()
@@ -61,21 +61,14 @@ class ViewController: UIViewController {
 		try! AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayAndRecord)
 		try! AVAudioSession.sharedInstance().setActive(true)
 
-		if audioEngine == nil {
-			audioEngine = AVAudioEngine()
-		}
-
-		let format = AVAudioFormat(commonFormat: AVAudioCommonFormat.pcmFormatInt16,
-													 sampleRate: 44100.0,
-													 channels: 1,
-													 interleaved: true)
-
+		let format = audioEngine.inputNode.inputFormat(forBus: 0)
+        
 		let downFormat = AVAudioFormat(commonFormat: AVAudioCommonFormat.pcmFormatInt16,
 													 sampleRate: 16000.0,
 													 channels: 1,
-													 interleaved: true)
+													 interleaved: true)!
 
-		audioEngine.connect(audioEngine.inputNode!, to: audioEngine.mainMixerNode, format: format)
+		audioEngine.connect(audioEngine.inputNode, to: audioEngine.mainMixerNode, format: format)
 
 		let dir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first! as String
 		let formatter = DateFormatter()
@@ -90,7 +83,7 @@ class ViewController: UIViewController {
 			AudioFileFlags.eraseFile.rawValue,
 			&outref)
 
-		audioEngine.inputNode!.installTap(onBus: 0, bufferSize: AVAudioFrameCount(format.sampleRate * 0.4), format: format, block: { (buffer: AVAudioPCMBuffer!, time: AVAudioTime!) -> Void in
+		audioEngine.inputNode.installTap(onBus: 0, bufferSize: AVAudioFrameCount(format.sampleRate * 0.4), format: format, block: { (buffer: AVAudioPCMBuffer!, time: AVAudioTime!) -> Void in
 
 			let converter = AVAudioConverter.init(from: format, to: downFormat)
 			let newbuffer = AVAudioPCMBuffer(pcmFormat: downFormat,
@@ -101,8 +94,8 @@ class ViewController: UIViewController {
 				return audioBuffer
 			}
 			var error : NSError?
-			converter.convert(to: newbuffer, error: &error, withInputFrom: inputBlock)
-			_ = ExtAudioFileWrite(self.outref!, newbuffer.frameLength, newbuffer.audioBufferList)
+			converter?.convert(to: newbuffer!, error: &error, withInputFrom: inputBlock)
+			_ = ExtAudioFileWrite(self.outref!, (newbuffer?.frameLength)!, (newbuffer?.audioBufferList)!)
 		})
 
 		try! audioEngine.start()
@@ -110,9 +103,9 @@ class ViewController: UIViewController {
 
 	func stopRecord() {
 
-		if audioEngine != nil && audioEngine.isRunning {
+		if audioEngine.isRunning {
 			audioEngine.stop()
-			audioEngine.inputNode!.removeTap(onBus: 0)
+			audioEngine.inputNode.removeTap(onBus: 0)
 			ExtAudioFileDispose(self.outref!)
 			try! AVAudioSession.sharedInstance().setActive(false)
 			self.isRec = false
@@ -128,10 +121,6 @@ class ViewController: UIViewController {
 		try! AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayback)
 		try! AVAudioSession.sharedInstance().setActive(true)
 
-		if audioEngine == nil {
-			audioEngine = AVAudioEngine()
-		}
-
 		if audioFilePlayer == nil {
 			audioFilePlayer = AVAudioPlayerNode()
 			audioEngine.attach(audioFilePlayer)
@@ -139,7 +128,8 @@ class ViewController: UIViewController {
 
 		audioFile = try! AVAudioFile(forReading: URL(fileURLWithPath: self.filePath!))
 		audioEngine.connect(audioFilePlayer, to: audioEngine.mainMixerNode, format: audioFile.processingFormat)
-		audioFilePlayer.scheduleSegment(audioFile, startingFrame: AVAudioFramePosition(0), frameCount: AVAudioFrameCount(audioFile.length) - UInt32(0), at: nil, completionHandler: self.completion)
+        audioFilePlayer.scheduleFile(audioFile, at: nil, completionHandler: self.completion)
+		//audioFilePlayer.scheduleSegment(audioFile, startingFrame: AVAudioFramePosition(0), frameCount: AVAudioFrameCount(audioFile.length) - UInt32(0), at: nil, completionHandler: self.completion)
 
 		if !audioEngine.isRunning {
 			try! audioEngine.start()
@@ -178,15 +168,17 @@ class ViewController: UIViewController {
 	}
 
 	func update() {
-		if isPlay || isRec {
-			self.indicator.startAnimating()
-			self.indicator.isHidden = false
-			self.rec.setTitle("STOP", for: .normal)
-		} else {
-			self.indicator.stopAnimating()
-			self.indicator.isHidden = true
-			self.rec.setTitle("RECORDING", for: .normal)
-		}
+        DispatchQueue.main.async {
+            if self.isPlay || self.isRec {
+                self.indicator.startAnimating()
+                self.indicator.isHidden = false
+                self.rec.setTitle("STOP", for: .normal)
+            } else {
+                self.indicator.stopAnimating()
+                self.indicator.isHidden = true
+                self.rec.setTitle("RECORDING", for: .normal)
+            }
+        }
 	}
 
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
